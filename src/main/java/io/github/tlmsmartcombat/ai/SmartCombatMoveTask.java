@@ -42,8 +42,22 @@ public class SmartCombatMoveTask extends Behavior<EntityMaid> {
         if (TruePowerCompat.isTruePowerBladeActive(maid)) {
             return false;
         }
+        // 主人护卫行为激活中：让位给 SmartProtectBehavior
+        if (isOwnerUnderThreat(maid)) {
+            return false;
+        }
         return maid.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET)
                 .filter(LivingEntity::isAlive)
+                .isPresent();
+    }
+
+    private static boolean isOwnerUnderThreat(EntityMaid maid) {
+        LivingEntity owner = maid.getOwner();
+        if (owner == null) {
+            return false;
+        }
+        return maid.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET)
+                .filter(t -> owner.distanceTo(t) <= 8.0)
                 .isPresent();
     }
 

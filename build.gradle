@@ -38,6 +38,8 @@ dependencies {
     // 拔刀剑与 True POWER of Maid（可选联动，编译期依赖）
     compileOnly "maven.modrinth:slashblade-resharped:2.0.3-1.21.1"
     compileOnly "maven.modrinth:true-power-of-maid:1.2.3-hotfix3"
+    // 容器管理（可选联动，编译期依赖，用于访问权检测）
+    compileOnly "maven.modrinth:maid-storage-manager:1.15.6"
 }
 
 // 资源文件中替换版本号

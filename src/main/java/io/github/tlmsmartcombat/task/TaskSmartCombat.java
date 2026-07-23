@@ -18,6 +18,8 @@ import io.github.tlmsmartcombat.ai.SmartBowAttackTask;
 import io.github.tlmsmartcombat.ai.SmartCombatMoveTask;
 import io.github.tlmsmartcombat.ai.SmartEquipBehavior;
 import io.github.tlmsmartcombat.ai.SmartMeleeAttackTask;
+import io.github.tlmsmartcombat.ai.SmartProtectBehavior;
+import io.github.tlmsmartcombat.ai.SmartResupplyBehavior;
 import io.github.tlmsmartcombat.ai.SmartShieldTask;
 import io.github.tlmsmartcombat.compat.SlashBladeCompat;
 import io.github.tlmsmartcombat.compat.TruePowerCompat;
@@ -33,6 +35,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
@@ -56,22 +59,29 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 /**
  * 智能战斗任务。
  * <p>
- * 与原版“战斗 / 弓 / 弩 / 三叉戟”等单一武器任务不同，本任务：
+ * 与原版"战斗 / 弓 / 弩 / 三叉戟"等单一武器任务不同，本任务：
  * <ol>
- *     <li>索敌时在可攻击的敌对生物中优先选择<b>当前生命值最高</b>的目标；</li>
+ *     <li>索敌时优先保护主人：每 10 tick 扫描主人周围 16 格的敌对生物，
+ *     自动将"锁定主人"或"最近伤害过主人"的目标设为最高优先级；</li>
+ *     <li>普通目标按生命值高低（厚血 BOSS 优先）结合距离选择；</li>
  *     <li>由 {@link SmartEquipBehavior} 周期性评估背包中的武器与盔甲，
  *     自动为主手选择对当前目标 DPS 最优的武器（近战 / 拔刀剑 / 弓 / 弩 / 三叉戟），
  *     为副手选择盾牌或图腾，并穿戴最优盔甲；</li>
  *     <li>移动与攻击行为根据主手武器形态自动在近战贴身与远程走位间切换；</li>
  *     <li>主手为拔刀剑时：若安装了 True POWER of Maid，则由其拔刀剑战斗 AI
- *     （连击 / 幻影剑 / 瞬步）接管攻击与移动；否则回退为 TLM 原版近战 AI。</li>
+ *     （连击 / 幻影剑 / 瞬步）接管攻击与移动；否则回退为 TLM 原版近战 AI；</li>
+ *     <li>战斗间隙自动从附近容器补给武器 / 盔甲 / 弹药，并将非战斗物资存入容器。</li>
  * </ol>
  */
 public class TaskSmartCombat implements IRangedAttackTask {
@@ -96,7 +106,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
     @Override
     public List<Pair<Integer, BehaviorControl<? super EntityMaid>>> createBrainTasks(EntityMaid maid) {
         BehaviorControl<EntityMaid> equipTask = new SmartEquipBehavior();
-        BehaviorControl<EntityMaid> supplementedTask = StartAttacking.create(this::hasUsableWeapon, this::findHighestHealthTarget);
+        BehaviorControl<EntityMaid> protectTask = new SmartProtectBehavior();
+        BehaviorControl<EntityMaid> supplementedTask = StartAttacking.create(this::hasUsableWeapon, this::findBestTarget);
         BehaviorControl<EntityMaid> findTargetTask = StopAttackingIfTargetInvalid.create(target -> !hasUsableWeapon(maid) || farAway(target, maid));
         BehaviorControl<EntityMaid> moveToTargetTask = new SmartCombatMoveTask(0.6f);
         BehaviorControl<EntityMaid> meleeAttackTask = SmartMeleeAttackTask.create(20);
@@ -106,9 +117,11 @@ public class TaskSmartCombat implements IRangedAttackTask {
         BehaviorControl<EntityMaid> strafingTask = new MaidAttackStrafingTask();
         BehaviorControl<EntityMaid> tridentStrafingTask = new MaidAttackTridentTask();
         BehaviorControl<EntityMaid> shieldTask = new SmartShieldTask();
+        BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
+                Pair.of(4, protectTask),
                 Pair.of(5, supplementedTask),
                 Pair.of(5, findTargetTask),
                 Pair.of(5, moveToTargetTask),
@@ -118,7 +131,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
                 Pair.of(5, tridentAttackTask),
                 Pair.of(5, strafingTask),
                 Pair.of(5, tridentStrafingTask),
-                Pair.of(5, shieldTask)
+                Pair.of(5, shieldTask),
+                Pair.of(6, resupplyTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;
@@ -127,78 +141,144 @@ public class TaskSmartCombat implements IRangedAttackTask {
     @Override
     public List<Pair<Integer, BehaviorControl<? super EntityMaid>>> createRideBrainTasks(EntityMaid maid) {
         BehaviorControl<EntityMaid> equipTask = new SmartEquipBehavior();
-        BehaviorControl<EntityMaid> supplementedTask = StartAttacking.create(this::hasUsableWeapon, this::findHighestHealthTarget);
+        BehaviorControl<EntityMaid> protectTask = new SmartProtectBehavior();
+        BehaviorControl<EntityMaid> supplementedTask = StartAttacking.create(this::hasUsableWeapon, this::findBestTarget);
         BehaviorControl<EntityMaid> findTargetTask = StopAttackingIfTargetInvalid.create(target -> !hasUsableWeapon(maid) || farAway(target, maid));
         BehaviorControl<EntityMaid> meleeAttackTask = SmartMeleeAttackTask.create(20);
         BehaviorControl<EntityMaid> bowAttackTask = new SmartBowAttackTask();
         BehaviorControl<EntityMaid> crossbowAttackTask = new MaidCrossbowAttack();
         BehaviorControl<EntityMaid> tridentAttackTask = new MaidTridentTargetTask();
+        BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
+                Pair.of(4, protectTask),
                 Pair.of(5, supplementedTask),
                 Pair.of(5, findTargetTask),
                 Pair.of(5, meleeAttackTask),
                 Pair.of(5, bowAttackTask),
                 Pair.of(5, crossbowAttackTask),
-                Pair.of(5, tridentAttackTask)
+                Pair.of(5, tridentAttackTask),
+                Pair.of(6, resupplyTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;
     }
 
     // ------------------------------------------------------------------
-    // 索敌：优先锁定生命值最高的敌对生物
+    // 索敌：主人护卫 + 生命值优先
     // ------------------------------------------------------------------
 
+    private static final int OWNER_SCAN_INTERVAL = 10;
+    private static final double OWNER_SCAN_RANGE = 16.0;
+    private static final int THREAT_RECENT_HURT_TICKS = 100;
+
+    private final Map<UUID, Long> lastOwnerScanTick = new HashMap<>();
+
     /**
-     * 在记忆的可攻击生物中，挑选当前生命值最高者作为攻击目标。
-     * 生命值相同时依次比较最大生命值与距离（更近者优先）。
+     * 综合索敌逻辑：在脑记忆候选基础上，每 {@value #OWNER_SCAN_INTERVAL} tick
+     * 额外扫描主人周围 {@value #OWNER_SCAN_RANGE} 格内的敌对生物，
+     * 并按照"威胁主人 > 高生命值 > 近距"的优先级排列。
      */
-    private Optional<LivingEntity> findHighestHealthTarget(EntityMaid maid) {
+    private Optional<LivingEntity> findBestTarget(EntityMaid maid) {
         var memory = maid.getBrain().getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES);
-        if (memory.isEmpty()) {
-            return Optional.empty();
+        List<LivingEntity> candidates = new ArrayList<>();
+        if (memory.isPresent()) {
+            for (LivingEntity e : memory.get()) {
+                if (e.isAlive() && maid.canAttack(e) && maid.isWithinRestriction(e.blockPosition()) && maid.canSee(e)) {
+                    candidates.add(e);
+                }
+            }
         }
+
+        // 每 OWNER_SCAN_INTERVAL tick 扫描主人周围
+        long gameTime = maid.level().getGameTime();
+        LivingEntity owner = maid.getOwner();
+        UUID maidId = maid.getUUID();
+        if (owner != null && gameTime - lastOwnerScanTick.getOrDefault(maidId, 0L) >= OWNER_SCAN_INTERVAL) {
+            lastOwnerScanTick.put(maidId, gameTime);
+            AABB ownerBox = new AABB(owner.blockPosition()).inflate(OWNER_SCAN_RANGE);
+            List<LivingEntity> nearby = maid.level().getEntitiesOfClass(LivingEntity.class, ownerBox,
+                    e -> e.isAlive() && maid.canAttack(e) && !candidates.contains(e));
+            for (LivingEntity e : nearby) {
+                if (isThreateningOwner(owner, e)) {
+                    // 威胁主人的目标即使超出女仆常规交战范围也添加
+                    candidates.add(e);
+                } else if (maid.isWithinRestriction(e.blockPosition()) && maid.canSee(e)) {
+                    candidates.add(e);
+                }
+            }
+        }
+
+        return pickBest(maid, owner, candidates);
+    }
+
+    private Optional<LivingEntity> pickBest(EntityMaid maid, @Nullable LivingEntity owner, List<LivingEntity> candidates) {
         LivingEntity best = null;
-        for (LivingEntity candidate : memory.get()) {
-            if (!candidate.isAlive()) {
+        int bestPri = Integer.MIN_VALUE;
+        for (LivingEntity c : candidates) {
+            if (!c.isAlive()) {
                 continue;
             }
-            if (!maid.canAttack(candidate)) {
+            if (!isEngageable(maid, owner, c)) {
                 continue;
             }
-            if (!maid.isWithinRestriction(candidate.blockPosition())) {
-                continue;
-            }
-            if (!maid.canSee(candidate)) {
-                continue;
-            }
-            if (farAway(candidate, maid)) {
-                continue;
-            }
-            if (best == null || compareTargets(maid, candidate, best) > 0) {
-                best = candidate;
+            int pri = computePriority(maid, owner, c);
+            if (pri > bestPri) {
+                bestPri = pri;
+                best = c;
             }
         }
         return Optional.ofNullable(best);
     }
 
     /**
-     * 目标价值比较：当前生命值 > 最大生命值 > 距离更近
-     *
-     * @return 正数表示 a 优于 b
+     * 该目标是否可以与女仆交战。
+     * 普通目标沿用原有的 farAway 判定；威胁主人的目标放宽距离限制。
      */
-    private static int compareTargets(EntityMaid maid, LivingEntity a, LivingEntity b) {
-        int cmp = Float.compare(a.getHealth(), b.getHealth());
-        if (cmp != 0) {
-            return cmp;
+    private boolean isEngageable(EntityMaid maid, @Nullable LivingEntity owner, LivingEntity target) {
+        if (owner != null && isThreateningOwner(owner, target)) {
+            // 威胁主人的目标不因距离过滤，优先保护
+            return target.isAlive();
         }
-        cmp = Float.compare(a.getMaxHealth(), b.getMaxHealth());
-        if (cmp != 0) {
-            return cmp;
+        return !farAway(target, maid);
+    }
+
+    /**
+     * 优先级标量（越高越优先）：
+     * <ol>
+     * <li>最近伤害过主人 → +2000</li>
+     * <li>当前锁定主人 → +1000</li>
+     * <li>目标生命值（血量越高越多）→ +health×10</li>
+     * <li>距女仆越近越优先 → +(1000 - dist×50)</li>
+     * </ol>
+     */
+    private static int computePriority(EntityMaid maid, @Nullable LivingEntity owner, LivingEntity enemy) {
+        int pri = 0;
+        if (owner != null) {
+            if (owner.getLastHurtByMob() == enemy
+                && owner.tickCount - owner.getLastHurtByMobTimestamp() < THREAT_RECENT_HURT_TICKS) {
+                pri += 2000;
+            }
+            if (enemy instanceof Mob mob && mob.getTarget() == owner) {
+                pri += 1000;
+            }
         }
-        return Double.compare(maid.distanceToSqr(b), maid.distanceToSqr(a));
+        pri += (int) (enemy.getHealth() * 10);
+        double dist = maid.distanceTo(enemy);
+        pri += Math.max(0, (int) (1000 - dist * 50));
+        return pri;
+    }
+
+    /**
+     * 该生物是否正在威胁主人（当前锁定主人 或 最近伤害过主人）。
+     */
+    private static boolean isThreateningOwner(LivingEntity owner, LivingEntity enemy) {
+        if (enemy instanceof Mob mob && mob.getTarget() == owner) {
+            return true;
+        }
+        return owner.getLastHurtByMob() == enemy
+               && owner.tickCount - owner.getLastHurtByMobTimestamp() < THREAT_RECENT_HURT_TICKS;
     }
 
     private boolean hasUsableWeapon(EntityMaid maid) {
