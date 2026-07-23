@@ -1,0 +1,6 @@
+{
+  "task.tlm_smart_combat.smart_combat": "智能战斗",
+  "task.tlm_smart_combat.smart_combat.desc": "智能战斗模式：\n· 优先锁定视野内生命值最高的敌对生物；\n· 根据背包中的武器实时计算对当前目标的 DPS，自动在主手切换近战武器 / 弓 / 弩 / 三叉戟中的最优解；\n· 近战时为副手装备盾牌，否则装备不死图腾；\n· 自动将背包中最优的头盔 / 胸甲 / 护腿 / 靴子穿戴上身。",
+  "task.tlm_smart_combat.smart_combat.condition.has_weapon": "背包或主手中存在可用武器（近战武器 / 弓 / 弩 / 三叉戟）",
+  "task.tlm_smart_combat.smart_combat.condition.has_ammo": "使用弓弩时背包中有对应弹药（无限附魔的弓除外）"
+}

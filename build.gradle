@@ -1,0 +1,57 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.95'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
+}
+
+neoForge {
+    // NeoForge 版本，与 Touhou Little Maid 1.21.1 分支保持一致
+    version = project.neo_version
+}
+
+dependencies {
+    // Touhou Little Maid 本体（编译期依赖，运行时由玩家安装）
+    compileOnly "maven.modrinth:touhou-little-maid:1.5.3-neoforge+mc1.21.1"
+    // 拔刀剑与 True POWER of Maid（可选联动，编译期依赖）
+    compileOnly "maven.modrinth:slashblade-resharped:2.0.3-1.21.1"
+    compileOnly "maven.modrinth:true-power-of-maid:1.2.3-hotfix3"
+}
+
+// 资源文件中替换版本号
+processResources {
+    def replaceProps = [
+            "mod_version"    : mod_version,
+            "mod_id"         : mod_id,
+            "mod_name"       : mod_name,
+            "mod_license"    : mod_license,
+            "mod_authors"    : mod_authors,
+            "mod_description": mod_description
+    ]
+    inputs.properties replaceProps
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand replaceProps
+    }
+}

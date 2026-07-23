@@ -1,0 +1,6 @@
+{
+  "task.tlm_smart_combat.smart_combat": "Smart Combat",
+  "task.tlm_smart_combat.smart_combat.desc": "Smart combat mode:\n- Focuses the visible hostile mob with the highest current health;\n- Continuously evaluates every weapon in the backpack against the current target and swaps the best one (melee / bow / crossbow / trident) into the main hand;\n- Equips a shield in the offhand for melee combat, otherwise a totem of undying;\n- Automatically wears the best helmet / chestplate / leggings / boots found in the backpack.",
+  "task.tlm_smart_combat.smart_combat.condition.has_weapon": "A usable weapon exists in hand or backpack (melee weapon / bow / crossbow / trident)",
+  "task.tlm_smart_combat.smart_combat.condition.has_ammo": "Ammo for the held bow/crossbow exists in the backpack (not needed for bows with Infinity)"
+}
