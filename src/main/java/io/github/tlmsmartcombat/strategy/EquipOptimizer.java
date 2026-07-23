@@ -81,10 +81,9 @@ public final class EquipOptimizer {
                 .orElse(null);
         boolean usingItem = maid.isUsingItem();
         if (usingItem) {
-            // 拉弓 / 装填过程中弹药耗尽 → 一直保持使用状态但无法开火，
-            // 且 isUsingItem 保护会阻止主副手换装。这里强制释放卡死的远程武器
             ItemStack mainHand = maid.getMainHandItem();
-            if (isStuckRangedWeapon(maid, mainHand)) {
+            // 远程武器弹药耗尽或近战/拔刀剑耐久将尽 — 强制释放以允许换装
+            if (isStuckRangedWeapon(maid, mainHand) || isNearlyBroken(mainHand)) {
                 maid.stopUsingItem();
                 usingItem = false;
             }
@@ -94,6 +93,15 @@ public final class EquipOptimizer {
             optimizeOffHand(maid, target);
         }
         optimizeArmor(maid);
+    }
+
+    /**
+     * 当前武器耐久是否已降至临界值（≤5），应尽快更换。
+     * 涵盖拔刀剑和普通近战武器。
+     */
+    private static boolean isNearlyBroken(ItemStack stack) {
+        return stack.isDamageableItem()
+               && stack.getMaxDamage() - stack.getDamageValue() <= 5;
     }
 
     /**
@@ -594,6 +602,9 @@ public final class EquipOptimizer {
         if (!current.isEmpty()) {
             backpack.setStackInSlot(slot, current);
         }
+        // 换手前终止正在使用的旧物品（拔刀剑 combo / 蓄力弓 等），
+        // 避免 verifyEquippedItem -> stopUsingItem 在中间打断导致的武器状态残留
+        maid.stopUsingItem();
         maid.setItemInHand(hand, extracted);
     }
 
