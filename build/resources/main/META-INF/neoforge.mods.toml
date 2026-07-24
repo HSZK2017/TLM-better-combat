@@ -43,3 +43,10 @@ type = "optional"
 versionRange = "[1.2.3,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "maid_storage_manager"
+type = "optional"
+versionRange = "[1.15.6,)"
+ordering = "AFTER"
+side = "BOTH"

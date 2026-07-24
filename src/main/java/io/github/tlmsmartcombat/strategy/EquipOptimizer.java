@@ -560,9 +560,11 @@ public final class EquipOptimizer {
     }
 
     /**
-     * 盔甲评分：护甲值 + 韧性 ×2 + 击退抗性 ×4 + 保护类附魔加权 + 耐久修正
+     * 盔甲评分（公开）：护甲值 + 韧性 ×2 + 击退抗性 ×4 + 保护类附魔加权 + 耐久修正。
+     * <p>
+     * 供外部兼容层（如 {@link io.github.tlmsmartcombat.compat.CraftCompat}）评估合成品护甲价值。
      */
-    private static double armorScore(EntityMaid maid, ItemStack stack, EquipmentSlot armorSlot) {
+    public static double armorScore(EntityMaid maid, ItemStack stack, EquipmentSlot armorSlot) {
         if (stack.isEmpty()) {
             return 0;
         }
@@ -677,7 +679,24 @@ public final class EquipOptimizer {
         return holder == null ? 0 : stack.getEnchantments().getLevel(holder);
     }
 
-    private enum WeaponKind {
-        NONE, MELEE, SLASH_BLADE, BOW, CROSSBOW, TRIDENT
+    public enum WeaponKind {
+        NONE(false), MELEE(true), SLASH_BLADE(true), BOW(true), CROSSBOW(true), TRIDENT(true);
+
+        private final boolean weaponLike;
+
+        WeaponKind(boolean weaponLike) {
+            this.weaponLike = weaponLike;
+        }
+
+        public boolean isWeaponLike() {
+            return weaponLike;
+        }
+    }
+
+    /**
+     * 公开的分类方法（供 CraftCompat 评估合成品）。
+     */
+    public static WeaponKind classifyPublic(ItemStack stack) {
+        return classify(stack);
     }
 }

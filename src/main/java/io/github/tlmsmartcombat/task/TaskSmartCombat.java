@@ -16,10 +16,11 @@ import com.mojang.datafixers.util.Pair;
 import io.github.tlmsmartcombat.TlmSmartCombat;
 import io.github.tlmsmartcombat.ai.SmartBowAttackTask;
 import io.github.tlmsmartcombat.ai.SmartCombatMoveTask;
+import io.github.tlmsmartcombat.ai.SmartCraftBehavior;
 import io.github.tlmsmartcombat.ai.SmartEquipBehavior;
 import io.github.tlmsmartcombat.ai.SmartMeleeAttackTask;
 import io.github.tlmsmartcombat.ai.SmartProtectBehavior;
-import io.github.tlmsmartcombat.ai.SmartResupplyBehavior;
+//import io.github.tlmsmartcombat.ai.SmartResupplyBehavior;
 import io.github.tlmsmartcombat.ai.SmartShieldTask;
 import io.github.tlmsmartcombat.compat.SlashBladeCompat;
 import io.github.tlmsmartcombat.compat.TruePowerCompat;
@@ -117,7 +118,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
         BehaviorControl<EntityMaid> strafingTask = new MaidAttackStrafingTask();
         BehaviorControl<EntityMaid> tridentStrafingTask = new MaidAttackTridentTask();
         BehaviorControl<EntityMaid> shieldTask = new SmartShieldTask();
-        BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
+        //BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
+        BehaviorControl<EntityMaid> craftTask = new SmartCraftBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
@@ -132,7 +134,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
                 Pair.of(5, strafingTask),
                 Pair.of(5, tridentStrafingTask),
                 Pair.of(5, shieldTask),
-                Pair.of(6, resupplyTask)
+                //Pair.of(6, resupplyTask),
+                Pair.of(7, craftTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;
@@ -148,7 +151,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
         BehaviorControl<EntityMaid> bowAttackTask = new SmartBowAttackTask();
         BehaviorControl<EntityMaid> crossbowAttackTask = new MaidCrossbowAttack();
         BehaviorControl<EntityMaid> tridentAttackTask = new MaidTridentTargetTask();
-        BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
+        //BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
+        BehaviorControl<EntityMaid> craftTask = new SmartCraftBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
@@ -159,7 +163,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
                 Pair.of(5, bowAttackTask),
                 Pair.of(5, crossbowAttackTask),
                 Pair.of(5, tridentAttackTask),
-                Pair.of(6, resupplyTask)
+                //Pair.of(6, resupplyTask),
+                Pair.of(7, craftTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;
