@@ -142,8 +142,36 @@ public final class CraftCompat {
          * 合成结束后取回产物的容器扫描半径（格）
          */
         private static final double RETRIEVE_RADIUS = 24.0;
+        /**
+         * 成品耐久替换阈值：女仆已拥有的同款物品剩余耐久低于该值时才允许重新合成
+         */
+        private static final int DURABILITY_REPLACE_THRESHOLD = 10;
 
         private Inner() {
+        }
+
+        /**
+         * 女仆（双手 / 盔甲栏 / 背包）是否已拥有与候选物同款且耐久充足（或不可损坏）的成品。
+         * 已有成品时不再重复合成，避免背包被同种物品填满。
+         */
+        static boolean ownsIntactProduct(EntityMaid maid, ItemStack candidate) {
+            if (isIntactDuplicate(maid.getMainHandItem(), candidate)) return true;
+            if (isIntactDuplicate(maid.getOffhandItem(), candidate)) return true;
+            for (EquipmentSlot slot : new EquipmentSlot[]{
+                    EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+                if (isIntactDuplicate(maid.getItemBySlot(slot), candidate)) return true;
+            }
+            var inv = maid.getAvailableInv(false);
+            for (int i = 0; i < inv.getSlots(); i++) {
+                if (isIntactDuplicate(inv.getStackInSlot(i), candidate)) return true;
+            }
+            return false;
+        }
+
+        private static boolean isIntactDuplicate(ItemStack owned, ItemStack candidate) {
+            if (owned.isEmpty() || !ItemStack.isSameItem(owned, candidate)) return false;
+            if (!owned.isDamageableItem()) return true;
+            return owned.getMaxDamage() - owned.getDamageValue() >= DURABILITY_REPLACE_THRESHOLD;
         }
 
         @Nullable
@@ -192,6 +220,10 @@ public final class CraftCompat {
 
                 for (ItemStack output : outputs) {
                     if (output.isEmpty()) continue;
+
+                    // 女仆已拥有同款且耐久充足的成品 → 不再重复合成
+                    // （若成品耐久低于阈值则允许合成新品替换）
+                    if (ownsIntactProduct(maid, output)) continue;
 
                     // 按武器（含拔刀剑）评分
                     WeaponKind kind = EquipOptimizer.classifyPublic(output);

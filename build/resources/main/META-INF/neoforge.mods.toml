@@ -9,6 +9,9 @@ displayName = "Touhou Little Maid Smart Combat"
 authors = "TLM Smart Combat Authors"
 description = '''Smart combat addon for Touhou Little Maid: focus-fire the highest-HP hostile and auto-optimize equipment for max DPS.'''
 
+[[mixins]]
+config = "tlm_smart_combat.mixins.json"
+
 [[dependencies.tlm_smart_combat]]
 modId = "neoforge"
 type = "required"
