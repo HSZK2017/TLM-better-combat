@@ -5,6 +5,7 @@ import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
 import io.github.tlmsmartcombat.TlmSmartCombat;
 import io.github.tlmsmartcombat.strategy.EquipOptimizer;
 import io.github.tlmsmartcombat.strategy.EquipOptimizer.WeaponKind;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -17,10 +18,14 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -126,12 +131,17 @@ public final class CraftCompat {
     private static final class Inner {
         private static final String TAG_AUTO_CRAFT = "tlm_smart_combat:auto_craft";
         private static final String TAG_CRAFT_TARGET = "tlm_smart_combat:craft_target";
+        private static final String TAG_CRAFT_COUNT = "tlm_smart_combat:craft_count";
         private static final String TAG_CRAFT_COOLDOWN = "tlm_smart_combat:craft_cooldown";
         private static final String VIRTUAL_MARKER = "tlm_smart_combat";
         /**
          * 合成失败 / 条件不满足后的重试冷却：5 分钟
          */
         private static final int COOLDOWN_FAIL_TICKS = 6000;
+        /**
+         * 合成结束后取回产物的容器扫描半径（格）
+         */
+        private static final double RETRIEVE_RADIUS = 24.0;
 
         private Inner() {
         }
@@ -277,6 +287,7 @@ public final class CraftCompat {
             data.putBoolean(TAG_AUTO_CRAFT, true);
             data.putString(TAG_CRAFT_TARGET,
                     BuiltInRegistries.ITEM.getKey(targetStack.getItem()).toString());
+            data.putInt(TAG_CRAFT_COUNT, Math.max(1, targetStack.getCount()));
 
             // 切换任务
             maid.setTask(storageTask);
@@ -299,6 +310,7 @@ public final class CraftCompat {
             if (!STORAGE_TASK_UID.equals(maid.getTask().getUid())) {
                 data.remove(TAG_AUTO_CRAFT);
                 data.remove(TAG_CRAFT_TARGET);
+                data.remove(TAG_CRAFT_COUNT);
                 return;
             }
 
@@ -315,6 +327,7 @@ public final class CraftCompat {
                 purgeMarkedLists(maid);
                 data.remove(TAG_AUTO_CRAFT);
                 data.remove(TAG_CRAFT_TARGET);
+                data.remove(TAG_CRAFT_COUNT);
                 switchToCombat(maid);
                 return;
             }
@@ -334,6 +347,16 @@ public final class CraftCompat {
             if (!holdingList && !hasPlan) {
                 String targetId = data.getString(TAG_CRAFT_TARGET);
                 boolean success = !targetId.isEmpty() && containsItem(maid, targetId);
+                if (!success && !targetId.isEmpty()) {
+                    // MSM 在合成成功后会进入"回存背包"日程，把产物倒入存储容器。
+                    // 这里立刻从附近容器中把产物取回女仆背包，使其能直接用于战斗。
+                    int want = Math.max(1, data.getInt(TAG_CRAFT_COUNT));
+                    success = retrieveFromNearbyContainer(maid, targetId, want);
+                    if (success) {
+                        TlmSmartCombat.LOGGER.info("[SmartCombat] {} 已从容器取回合成产物",
+                                maid.getName().getString());
+                    }
+                }
                 if (!success) {
                     // 未获得目标物 → 合成失败（缺材料等），进入冷却避免空转
                     data.putLong(TAG_CRAFT_COOLDOWN, maid.level().getGameTime() + COOLDOWN_FAIL_TICKS);
@@ -343,6 +366,7 @@ public final class CraftCompat {
                 purgeMarkedLists(maid);
                 data.remove(TAG_AUTO_CRAFT);
                 data.remove(TAG_CRAFT_TARGET);
+                data.remove(TAG_CRAFT_COUNT);
                 switchToCombat(maid);
             }
         }
@@ -416,7 +440,8 @@ public final class CraftCompat {
         /**
          * 背包或主手中是否已存在指定物品
          */
-        static boolean containsItem(EntityMaid maid, String itemId) {            ResourceLocation key = ResourceLocation.tryParse(itemId);
+        static boolean containsItem(EntityMaid maid, String itemId) {
+            ResourceLocation key = ResourceLocation.tryParse(itemId);
             if (key == null) return true;
             var item = BuiltInRegistries.ITEM.get(key);
             if (maid.getMainHandItem().is(item)) return true;
@@ -425,6 +450,61 @@ public final class CraftCompat {
                 if (inv.getStackInSlot(i).is(item)) return true;
             }
             return false;
+        }
+
+        /**
+         * 从附近容器中取回指定物品放入女仆背包。
+         * <p>
+         * MSM 合成成功后的"回存背包"日程会把产物存入容器；
+         * 该方法在合成流程结束时立即把产物取回，实现"合成的装备直接用于战斗"。
+         * 由近及远扫描 {@value #RETRIEVE_RADIUS} 格内的可访问容器，取够 count 即停。
+         *
+         * @return 是否取回了至少一个目标物品
+         */
+        static boolean retrieveFromNearbyContainer(EntityMaid maid, String itemId, int count) {
+            ResourceLocation key = ResourceLocation.tryParse(itemId);
+            if (key == null) return false;
+            var item = BuiltInRegistries.ITEM.get(key);
+            ServerLevel level = (ServerLevel) maid.level();
+            BlockPos center = maid.blockPosition();
+
+            // 收集半径内的容器位置，按距离从近到远排序
+            List<BlockPos> positions = new ArrayList<>();
+            int r = (int) Math.ceil(RETRIEVE_RADIUS);
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dy = -r; dy <= r; dy++) {
+                    for (int dz = -r; dz <= r; dz++) {
+                        BlockPos pos = center.offset(dx, dy, dz);
+                        if (center.distSqr(pos) <= RETRIEVE_RADIUS * RETRIEVE_RADIUS && level.isLoaded(pos)) {
+                            positions.add(pos.immutable());
+                        }
+                    }
+                }
+            }
+            positions.sort(Comparator.comparingDouble(center::distSqr));
+
+            int remaining = count;
+            for (BlockPos pos : positions) {
+                IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
+                if (container == null) continue;
+                // 尊重 maid_storage_manager 的访问权标记
+                if (!StorageCompat.isAccessibleStorage(level, maid, pos)) continue;
+                for (int slot = 0; slot < container.getSlots() && remaining > 0; slot++) {
+                    ItemStack stack = container.getStackInSlot(slot);
+                    if (!stack.is(item)) continue;
+                    ItemStack extracted = container.extractItem(slot, remaining, false);
+                    if (extracted.isEmpty()) continue;
+                    remaining -= extracted.getCount();
+                    ItemStack rest = StorageCompat.insertIntoInv(maid.getAvailableInv(false), extracted);
+                    if (!rest.isEmpty()) {
+                        // 背包装不下则退回容器
+                        container.insertItem(slot, rest, false);
+                        return remaining < count;
+                    }
+                }
+                if (remaining <= 0) break;
+            }
+            return remaining < count;
         }
 
         static void switchToCombat(EntityMaid maid) {

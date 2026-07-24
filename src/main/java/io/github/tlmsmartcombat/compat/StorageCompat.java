@@ -95,6 +95,14 @@ public final class StorageCompat {
         return MaidStorageAccess.isTargetValid(level, maid, pos);
     }
 
+    /**
+     * 公开的访问权检测：容器是否可被女仆访问。
+     * 供 {@link CraftCompat} 取回合成产物时复用。
+     */
+    public static boolean isAccessibleStorage(ServerLevel level, EntityMaid maid, BlockPos pos) {
+        return isAccessible(level, maid, pos);
+    }
+
     // ------------------------------------------------------------------
     // 物资拉取
     // ------------------------------------------------------------------
