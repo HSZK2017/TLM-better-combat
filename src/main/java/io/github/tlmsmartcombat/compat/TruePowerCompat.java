@@ -26,7 +26,7 @@ public final class TruePowerCompat {
     }
 
     /**
-     * 当前是否应当由 TPOM 接管女仆的拔刀剑战斗（TPOM 已安装且主手持有拔刀剑）
+     * 当前是否应当由 TPOM 接管女仆的拔刀剑战斗（TPOM 已安装且主手持有拔刀剑）1
      */
     public static boolean isTruePowerBladeActive(EntityMaid maid) {
         return isLoaded() && SlashBladeCompat.isSlashBladeItem(maid.getMainHandItem());
