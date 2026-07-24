@@ -18,6 +18,7 @@ import io.github.tlmsmartcombat.ai.SmartBowAttackTask;
 import io.github.tlmsmartcombat.ai.SmartCombatMoveTask;
 import io.github.tlmsmartcombat.ai.SmartCraftBehavior;
 import io.github.tlmsmartcombat.ai.SmartEquipBehavior;
+import io.github.tlmsmartcombat.ai.SmartLootBehavior;
 import io.github.tlmsmartcombat.ai.SmartMeleeAttackTask;
 import io.github.tlmsmartcombat.ai.SmartProtectBehavior;
 //import io.github.tlmsmartcombat.ai.SmartResupplyBehavior;
@@ -120,6 +121,7 @@ public class TaskSmartCombat implements IRangedAttackTask {
         BehaviorControl<EntityMaid> shieldTask = new SmartShieldTask();
         //BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
         BehaviorControl<EntityMaid> craftTask = new SmartCraftBehavior();
+        BehaviorControl<EntityMaid> lootTask = new SmartLootBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
@@ -135,7 +137,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
                 Pair.of(5, tridentStrafingTask),
                 Pair.of(5, shieldTask),
                 //Pair.of(6, resupplyTask),
-                Pair.of(7, craftTask)
+                Pair.of(7, craftTask),
+                Pair.of(7, lootTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;
@@ -153,6 +156,7 @@ public class TaskSmartCombat implements IRangedAttackTask {
         BehaviorControl<EntityMaid> tridentAttackTask = new MaidTridentTargetTask();
         //BehaviorControl<EntityMaid> resupplyTask = new SmartResupplyBehavior();
         BehaviorControl<EntityMaid> craftTask = new SmartCraftBehavior();
+        BehaviorControl<EntityMaid> lootTask = new SmartLootBehavior();
 
         List<Pair<Integer, BehaviorControl<? super EntityMaid>>> tasks = Lists.newArrayList(
                 Pair.of(4, equipTask),
@@ -164,7 +168,8 @@ public class TaskSmartCombat implements IRangedAttackTask {
                 Pair.of(5, crossbowAttackTask),
                 Pair.of(5, tridentAttackTask),
                 //Pair.of(6, resupplyTask),
-                Pair.of(7, craftTask)
+                Pair.of(7, craftTask),
+                Pair.of(7, lootTask)
         );
         TruePowerCompat.addSlashBladeTasks(tasks);
         return tasks;

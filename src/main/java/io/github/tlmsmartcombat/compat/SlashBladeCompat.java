@@ -1,5 +1,6 @@
 package io.github.tlmsmartcombat.compat;
 
+import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 
@@ -40,6 +41,27 @@ public final class SlashBladeCompat {
         return Inner.getBladeAttackDamage(stack);
     }
 
+    /**
+     * 扫描女仆附近的刀架并取下强力拔刀剑：
+     * 刀架上的拔刀剑 DPS 若进入女仆持有武器前 3 名则取下收入背包。
+     * 多余拔刀剑的存放由 {@link #placeOnEmptyRacks} 统一处理。
+     */
+    public static void lootBladeRacks(EntityMaid maid, double radius) {
+        if (!isLoaded()) return;
+        Inner.lootBladeRacks(maid, radius);
+    }
+
+    /**
+     * 把拔刀剑放到附近的空刀架上（由近及远，每个刀架一把）。
+     *
+     * @return 未能放上刀架的剩余拔刀剑
+     */
+    public static java.util.List<ItemStack> placeOnEmptyRacks(EntityMaid maid, double radius,
+                                                              java.util.List<ItemStack> blades) {
+        if (!isLoaded() || blades.isEmpty()) return blades;
+        return Inner.placeOnEmptyRacks(maid, radius, blades);
+    }
+
     private static final class Inner {
         private Inner() {
         }
@@ -52,6 +74,56 @@ public final class SlashBladeCompat {
             return mods.flammpfeil.slashblade.capability.slashblade.BladeStateAccess.of(stack)
                     .map(state -> (double) (state.getBaseAttackModifier() + state.getAttackAmplifier()))
                     .orElse(-1.0);
+        }
+
+        static void lootBladeRacks(EntityMaid maid, double radius) {
+            var level = (net.minecraft.server.level.ServerLevel) maid.level();
+            var target = maid.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.ATTACK_TARGET)
+                    .filter(net.minecraft.world.entity.LivingEntity::isAlive).orElse(null);
+            var stands = level.getEntitiesOfClass(
+                    mods.flammpfeil.slashblade.entity.BladeStandEntity.class,
+                    maid.getBoundingBox().inflate(radius),
+                    e -> e.isAlive() && !e.getItem().isEmpty());
+            for (var stand : stands) {
+                ItemStack blade = stand.getItem();
+                double bladeScore = io.github.tlmsmartcombat.strategy.EquipOptimizer
+                        .scoreMainHand(maid, blade, target);
+                if (bladeScore <= 0) continue;
+                // DPS 不在持有武器前三之内 → 不取
+                if (!io.github.tlmsmartcombat.strategy.EquipOptimizer
+                        .wouldRankTopWeapons(maid, bladeScore, 3, target)) continue;
+
+                // 取下刀架上的拔刀剑收入背包
+                stand.setItem(ItemStack.EMPTY);
+                ItemStack rest = StorageCompat.insertIntoInv(maid.getAvailableBackpackInv(), blade.copy());
+                if (!rest.isEmpty()) {
+                    maid.spawnAtLocation(rest);
+                }
+                stand.playSound(net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, 1.0F, 1.0F);
+            }
+        }
+
+        static java.util.List<ItemStack> placeOnEmptyRacks(EntityMaid maid, double radius,
+                                                           java.util.List<ItemStack> blades) {
+            var level = (net.minecraft.server.level.ServerLevel) maid.level();
+            var stands = level.getEntitiesOfClass(
+                    mods.flammpfeil.slashblade.entity.BladeStandEntity.class,
+                    maid.getBoundingBox().inflate(radius),
+                    e -> e.isAlive() && e.getItem().isEmpty());
+            if (stands.isEmpty()) return blades;
+            stands.sort(java.util.Comparator.comparingDouble(maid::distanceToSqr));
+            java.util.List<ItemStack> remaining = new java.util.ArrayList<>();
+            int idx = 0;
+            for (ItemStack blade : blades) {
+                if (idx < stands.size()) {
+                    var stand = stands.get(idx++);
+                    stand.setItem(blade);
+                    stand.playSound(net.minecraft.sounds.SoundEvents.ITEM_FRAME_ADD_ITEM, 1.0F, 1.0F);
+                } else {
+                    remaining.add(blade);
+                }
+            }
+            return remaining;
         }
     }
 }

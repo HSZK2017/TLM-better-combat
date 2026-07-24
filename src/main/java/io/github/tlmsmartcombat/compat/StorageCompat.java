@@ -86,6 +86,35 @@ public final class StorageCompat {
     }
 
     /**
+     * 扫描半径内所有可访问容器，按距离从近到远排序返回。
+     */
+    public static java.util.List<BlockPos> findContainers(EntityMaid maid, double radius) {
+        ServerLevel level = (ServerLevel) maid.level();
+        BlockPos maidPos = maid.blockPosition();
+        java.util.List<BlockPos> found = new java.util.ArrayList<>();
+        int r = (int) Math.ceil(radius);
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                for (int dy = -r; dy <= r; dy++) {
+                    BlockPos pos = maidPos.offset(dx, dy, dz);
+                    double distSqr = maidPos.distSqr(pos);
+                    if (distSqr > radius * radius) {
+                        continue;
+                    }
+                    if (!level.isLoaded(pos)) {
+                        continue;
+                    }
+                    if (isValidStorage(level, pos) && isAccessible(level, maid, pos)) {
+                        found.add(pos.immutable());
+                    }
+                }
+            }
+        }
+        found.sort(java.util.Comparator.comparingDouble(maidPos::distSqr));
+        return found;
+    }
+
+    /**
      * 容器是否可被女仆访问（尊重 maid_storage_manager 的 NoAccess 标记）。
      */
     private static boolean isAccessible(ServerLevel level, EntityMaid maid, BlockPos pos) {
@@ -270,7 +299,7 @@ public final class StorageCompat {
      *
      * @return 未能装入的剩余物品
      */
-    static ItemStack insertIntoInv(IItemHandler inv, ItemStack stack) {
+    public static ItemStack insertIntoInv(IItemHandler inv, ItemStack stack) {
         if (stack.isEmpty()) {
             return stack;
         }

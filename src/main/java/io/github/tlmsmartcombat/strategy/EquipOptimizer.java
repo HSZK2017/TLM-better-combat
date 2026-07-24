@@ -699,4 +699,37 @@ public final class EquipOptimizer {
     public static WeaponKind classifyPublic(ItemStack stack) {
         return classify(stack);
     }
+
+    /**
+     * 判断一个 DPS 评分能否进入女仆当前持有武器（双手 + 背包）的前 N 名。
+     * <p>
+     * 持有武器不足 N 件时直接视为可进入；否则要求评分超过第 N 名一定余量
+     * （{@value #TOP_RANK_MARGIN}），避免与同分物品反复交换。
+     */
+    public static boolean wouldRankTopWeapons(EntityMaid maid, double score, int n, @Nullable LivingEntity target) {
+        if (n <= 0) {
+            return false;
+        }
+        java.util.List<Double> scores = new java.util.ArrayList<>();
+        collectWeaponScore(maid, maid.getMainHandItem(), target, scores);
+        collectWeaponScore(maid, maid.getOffhandItem(), target, scores);
+        CombinedInvWrapper backpack = maid.getAvailableBackpackInv();
+        for (int i = 0; i < backpack.getSlots(); i++) {
+            collectWeaponScore(maid, backpack.getStackInSlot(i), target, scores);
+        }
+        if (scores.size() < n) {
+            return true;
+        }
+        scores.sort(java.util.Comparator.reverseOrder());
+        return score > scores.get(n - 1) + TOP_RANK_MARGIN;
+    }
+
+    private static final double TOP_RANK_MARGIN = 0.05;
+
+    private static void collectWeaponScore(EntityMaid maid, ItemStack stack, @Nullable LivingEntity target, java.util.List<Double> out) {
+        if (stack.isEmpty() || classify(stack) == WeaponKind.NONE) {
+            return;
+        }
+        out.add(scoreMainHand(maid, stack, target));
+    }
 }
