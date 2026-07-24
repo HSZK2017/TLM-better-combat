@@ -4,7 +4,7 @@ license = "MIT"
 
 [[mods]]
 modId = "tlm_smart_combat"
-version = "1.0.0"
+version = "1.1.2"
 displayName = "Touhou Little Maid Smart Combat"
 authors = "TLM Smart Combat Authors"
 description = '''Smart combat addon for Touhou Little Maid: focus-fire the highest-HP hostile and auto-optimize equipment for max DPS.'''
