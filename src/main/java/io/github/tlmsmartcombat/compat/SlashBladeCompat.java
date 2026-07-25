@@ -2,7 +2,7 @@ package io.github.tlmsmartcombat.compat;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
+import net.minecraftforge.fml.ModList;
 
 /**
  * 拔刀剑（SlashBlade: Resharped）软依赖桥接。
@@ -67,11 +67,12 @@ public final class SlashBladeCompat {
         }
 
         static boolean isSlashBladeItem(ItemStack stack) {
-            return mods.flammpfeil.slashblade.capability.slashblade.BladeStateAccess.of(stack).isPresent();
+            return stack.getCapability(mods.flammpfeil.slashblade.capability.slashblade.CapabilitySlashBlade.BLADESTATE)
+                    .isPresent();
         }
 
         static double getBladeAttackDamage(ItemStack stack) {
-            return mods.flammpfeil.slashblade.capability.slashblade.BladeStateAccess.of(stack)
+            return stack.getCapability(mods.flammpfeil.slashblade.capability.slashblade.CapabilitySlashBlade.BLADESTATE)
                     .map(state -> (double) (state.getBaseAttackModifier() + state.getAttackAmplifier()))
                     .orElse(-1.0);
         }

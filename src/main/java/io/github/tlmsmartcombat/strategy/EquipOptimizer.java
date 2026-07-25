@@ -6,16 +6,12 @@ import com.github.tartaricacid.touhoulittlemaid.util.ItemsUtil;
 import io.github.tlmsmartcombat.TlmSmartCombat;
 import io.github.tlmsmartcombat.compat.SlashBladeCompat;
 import io.github.tlmsmartcombat.compat.TruePowerCompat;
-import net.minecraft.core.Holder;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MobType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -31,9 +27,10 @@ import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
+import net.minecraftforge.items.wrapper.CombinedInvWrapper;
 
 import javax.annotation.Nullable;
+import java.util.Map;
 
 /**
  * 女仆战斗装备优化器。
@@ -215,13 +212,7 @@ public final class EquipOptimizer {
      * 是否为近战武器：带有适用于主手的攻击伤害属性修饰符（剑 / 斧 / 锄 / 重锤以及模组武器等）
      */
     public static boolean isMeleeWeapon(ItemStack stack) {
-        boolean[] found = {false};
-        stack.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
-            if (attribute.is(Attributes.ATTACK_DAMAGE)) {
-                found[0] = true;
-            }
-        });
-        return found[0];
+        return stack.getAttributeModifiers(EquipmentSlot.MAINHAND).containsKey(Attributes.ATTACK_DAMAGE);
     }
 
     /**
@@ -231,7 +222,7 @@ public final class EquipOptimizer {
         WeaponKind kind = classify(stack);
         return switch (kind) {
             case MELEE, TRIDENT, SLASH_BLADE -> true;
-            case BOW -> hasAmmo(maid, stack) || (hasAmmo(maid, stack) && enchantLevel(maid, Enchantments.INFINITY, stack) > 0);
+            case BOW -> hasAmmo(maid, stack) || (hasAmmo(maid, stack) && enchantLevel(maid, Enchantments.INFINITY_ARROWS, stack) > 0);
             case CROSSBOW -> hasAmmo(maid, stack);
             case NONE -> false;
         };
@@ -282,11 +273,11 @@ public final class EquipOptimizer {
     private static double bowDps(EntityMaid maid, ItemStack bow, @Nullable LivingEntity target) {
         double base = attrValueWithoutItem(maid, Attributes.ATTACK_DAMAGE, EquipmentSlot.MAINHAND);
         double damage = 9.0 * Math.max(1, base / 2);
-        int power = enchantLevel(maid, Enchantments.POWER, bow);
+        int power = enchantLevel(maid, Enchantments.POWER_ARROWS, bow);
         if (power > 0) {
             damage += 0.5 * power + 0.5;
         }
-        double cycleTicks = 20 + attributeValue(maid, InitAttribute.MAID_SHOOT_COOLDOWN, 2);
+        double cycleTicks = 20 + attributeValue(maid, InitAttribute.MAID_SHOOT_COOLDOWN.get(), 2);
         if (cycleTicks <= 0) {
             cycleTicks = 1;
         }
@@ -306,8 +297,8 @@ public final class EquipOptimizer {
         if (multishot > 0) {
             damage *= 1.3;
         }
-        double chargeTicks = CrossbowItem.getChargeDuration(crossbow, maid);
-        double delayTicks = 30 / Math.max(0.1, attributeValue(maid, InitAttribute.MAID_CROSSBOW_ATTACK_SPEED, 1));
+        double chargeTicks = CrossbowItem.getChargeDuration(crossbow);
+        double delayTicks = 30 / Math.max(0.1, attributeValue(maid, InitAttribute.MAID_CROSSBOW_ATTACK_SPEED.get(), 1));
         double cycleTicks = chargeTicks + delayTicks;
         return applyArmorReduction(damage, target) * (20.0 / cycleTicks) * distanceFactor(maid, target, false);
     }
@@ -321,10 +312,10 @@ public final class EquipOptimizer {
     private static double thrownTridentDps(EntityMaid maid, ItemStack trident, @Nullable LivingEntity target) {
         double damage = 8;
         int impaling = enchantLevel(maid, Enchantments.IMPALING, trident);
-        if (impaling > 0 && target != null && target.getType().is(EntityTypeTags.SENSITIVE_TO_IMPALING)) {
+        if (impaling > 0 && target != null && target.getMobType() == MobType.WATER) {
             damage += 2.5 * impaling;
         }
-        double cycleTicks = Math.max(1, attributeValue(maid, InitAttribute.MAID_TRIDENT_COOLDOWN, 20));
+        double cycleTicks = Math.max(1, attributeValue(maid, InitAttribute.MAID_TRIDENT_COOLDOWN.get(), 20));
         return applyArmorReduction(damage, target) * (20.0 / cycleTicks) * distanceFactor(maid, target, false);
     }
 
@@ -367,11 +358,11 @@ public final class EquipOptimizer {
         }
         if (target != null) {
             int smite = enchantLevel(maid, Enchantments.SMITE, stack);
-            if (smite > 0 && target.getType().is(EntityTypeTags.SENSITIVE_TO_SMITE)) {
+            if (smite > 0 && target.getMobType() == MobType.UNDEAD) {
                 bonus += 2.5 * smite;
             }
             int bane = enchantLevel(maid, Enchantments.BANE_OF_ARTHROPODS, stack);
-            if (bane > 0 && target.getType().is(EntityTypeTags.SENSITIVE_TO_BANE_OF_ARTHROPODS)) {
+            if (bane > 0 && target.getMobType() == MobType.ARTHROPOD) {
                 bonus += 2.5 * bane;
             }
         }
@@ -553,7 +544,7 @@ public final class EquipOptimizer {
     @Nullable
     private static EquipmentSlot getArmorSlot(EntityMaid maid, ItemStack stack) {
         EquipmentSlot slot = maid.getEquipmentSlotForItem(stack);
-        if (slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR) {
+        if (slot.getType() == EquipmentSlot.Type.ARMOR) {
             return slot;
         }
         return null;
@@ -572,7 +563,7 @@ public final class EquipOptimizer {
         double toughness = attributeAmount(stack, Attributes.ARMOR_TOUGHNESS, armorSlot);
         double knockbackResistance = attributeAmount(stack, Attributes.KNOCKBACK_RESISTANCE, armorSlot);
 
-        int protection = enchantLevel(maid, Enchantments.PROTECTION, stack);
+        int protection = enchantLevel(maid, Enchantments.ALL_DAMAGE_PROTECTION, stack);
         int blast = enchantLevel(maid, Enchantments.BLAST_PROTECTION, stack);
         int projectile = enchantLevel(maid, Enchantments.PROJECTILE_PROTECTION, stack);
         int fire = enchantLevel(maid, Enchantments.FIRE_PROTECTION, stack);
@@ -627,17 +618,18 @@ public final class EquipOptimizer {
     /**
      * 物品在指定装备槽位上对某属性的修饰量（加法修饰直接累加，乘法修饰按经验系数折算）
      */
-    private static double attributeAmount(ItemStack stack, Holder<Attribute> attribute, EquipmentSlot slot) {
+    private static double attributeAmount(ItemStack stack, Attribute attribute, EquipmentSlot slot) {
         double[] sums = {0, 0};
-        stack.forEachModifier(slot, (attr, modifier) -> {
-            if (attr.is(attribute)) {
-                if (modifier.operation() == AttributeModifier.Operation.ADD_VALUE) {
-                    sums[0] += modifier.amount();
+        for (Map.Entry<Attribute, AttributeModifier> entry : stack.getAttributeModifiers(slot).entries()) {
+            if (entry.getKey() == attribute) {
+                AttributeModifier modifier = entry.getValue();
+                if (modifier.getOperation() == AttributeModifier.Operation.ADDITION) {
+                    sums[0] += modifier.getAmount();
                 } else {
-                    sums[1] += modifier.amount();
+                    sums[1] += modifier.getAmount();
                 }
             }
-        });
+        }
         // 乘法修饰在武器上极少出现，按对典型基础值（8 点）的倍率折算为等效加值
         return sums[0] + sums[1] * 8;
     }
@@ -646,7 +638,7 @@ public final class EquipOptimizer {
      * 女仆某属性的当前值，扣除指定手部物品带来的修饰，得到“空手”值，
      * 用于估算换上候选武器后的属性。
      */
-    private static double attrValueWithoutItem(EntityMaid maid, Holder<Attribute> attribute, EquipmentSlot handSlot) {
+    private static double attrValueWithoutItem(EntityMaid maid, Attribute attribute, EquipmentSlot handSlot) {
         AttributeInstance instance = maid.getAttribute(attribute);
         if (instance == null) {
             return 0;
@@ -655,17 +647,17 @@ public final class EquipOptimizer {
         ItemStack held = maid.getItemBySlot(handSlot);
         if (!held.isEmpty()) {
             double[] flat = {0};
-            held.forEachModifier(handSlot, (attr, modifier) -> {
-                if (attr.is(attribute) && modifier.operation() == AttributeModifier.Operation.ADD_VALUE) {
-                    flat[0] += modifier.amount();
+            for (Map.Entry<Attribute, AttributeModifier> entry : held.getAttributeModifiers(handSlot).entries()) {
+                if (entry.getKey() == attribute && entry.getValue().getOperation() == AttributeModifier.Operation.ADDITION) {
+                    flat[0] += entry.getValue().getAmount();
                 }
-            });
+            }
             value -= flat[0];
         }
         return value;
     }
 
-    private static double attributeValue(EntityMaid maid, Holder<Attribute> attribute, double fallback) {
+    private static double attributeValue(EntityMaid maid, Attribute attribute, double fallback) {
         AttributeInstance instance = maid.getAttribute(attribute);
         return instance == null ? fallback : instance.getValue();
     }
@@ -673,10 +665,8 @@ public final class EquipOptimizer {
     /**
      * 读取物品上指定附魔的等级
      */
-    private static int enchantLevel(EntityMaid maid, ResourceKey<Enchantment> key, ItemStack stack) {
-        RegistryAccess access = maid.level().registryAccess();
-        Holder<Enchantment> holder = access.registryOrThrow(Registries.ENCHANTMENT).getHolder(key).orElse(null);
-        return holder == null ? 0 : stack.getEnchantments().getLevel(holder);
+    private static int enchantLevel(EntityMaid maid, Enchantment enchantment, ItemStack stack) {
+        return stack.getEnchantmentLevel(enchantment);
     }
 
     public enum WeaponKind {

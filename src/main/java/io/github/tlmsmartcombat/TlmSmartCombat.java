@@ -1,7 +1,7 @@
 package io.github.tlmsmartcombat;
 
 import io.github.tlmsmartcombat.compat.CraftCompat;
-import net.neoforged.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

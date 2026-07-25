@@ -1,2 +1,3 @@
 Manifest-Version: 1.0
+MixinConfigs: tlm_smart_combat.mixins.json
 

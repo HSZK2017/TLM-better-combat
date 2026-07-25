@@ -13,8 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraftforge.items.IItemHandler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +78,7 @@ public class SmartLootBehavior extends Behavior<EntityMaid> {
         int moves = 0;
         List<BlockPos> containers = StorageCompat.findContainers(maid, SCAN_RADIUS);
         for (BlockPos pos : containers) {
-            IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
+            IItemHandler container = StorageCompat.getItemHandler(level, pos);
             if (container == null) continue;
             moves += lootContainer(maid, target, container);
         }
@@ -130,7 +129,7 @@ public class SmartLootBehavior extends Behavior<EntityMaid> {
 
             // 盔甲：评分高于当前对应部位 → 取出，并放入背包中评分最低的盔甲
             EquipmentSlot fitted = maid.getEquipmentSlotForItem(stack);
-            if (fitted.getType() == EquipmentSlot.Type.HUMANOID_ARMOR) {
+            if (fitted.getType() == EquipmentSlot.Type.ARMOR) {
                 double score = EquipOptimizer.armorScore(maid, stack, fitted);
                 double current = EquipOptimizer.armorScore(maid, maid.getItemBySlot(fitted), fitted);
                 if (score > current + ARMOR_LOOT_MARGIN) {
@@ -194,7 +193,7 @@ public class SmartLootBehavior extends Behavior<EntityMaid> {
         // 再尝试存入附近容器
         if (!excess.isEmpty()) {
             for (BlockPos pos : containers) {
-                IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
+                IItemHandler container = StorageCompat.getItemHandler(level, pos);
                 if (container == null) continue;
                 List<ItemStack> remaining = new ArrayList<>();
                 for (ItemStack blade : excess) {
@@ -266,7 +265,7 @@ public class SmartLootBehavior extends Behavior<EntityMaid> {
             ItemStack stack = inv.getStackInSlot(i);
             if (stack.isEmpty()) continue;
             EquipmentSlot fitted = maid.getEquipmentSlotForItem(stack);
-            if (fitted.getType() != EquipmentSlot.Type.HUMANOID_ARMOR) continue;
+            if (fitted.getType() != EquipmentSlot.Type.ARMOR) continue;
             double score = EquipOptimizer.armorScore(maid, stack, fitted);
             if (score < lowestScore) {
                 lowestScore = score;

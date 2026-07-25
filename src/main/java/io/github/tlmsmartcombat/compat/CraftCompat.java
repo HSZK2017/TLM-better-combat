@@ -17,11 +17,10 @@ import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.items.IItemHandler;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ import java.util.function.Predicate;
 public final class CraftCompat {
     private static final String MOD_ID = "maid_storage_manager";
     static final ResourceLocation STORAGE_TASK_UID =
-            ResourceLocation.fromNamespaceAndPath("maid_storage_manager", "storage_manage");
+            new ResourceLocation("maid_storage_manager", "storage_manage");
 
     private CraftCompat() {
     }
@@ -119,7 +118,7 @@ public final class CraftCompat {
      * 由 {@link io.github.tlmsmartcombat.TlmSmartCombat} 在模组初始化时调用。
      */
     public static void registerReturnCheck() {
-        NeoForge.EVENT_BUS.addListener(EntityTickEvent.Post.class, event -> {
+        MinecraftForge.EVENT_BUS.addListener((LivingEvent.LivingTickEvent event) -> {
             if (event.getEntity() instanceof EntityMaid maid && !maid.level().isClientSide) {
                 if (isLoaded()) {
                     Inner.tickAutoCraft(maid);
@@ -202,7 +201,7 @@ public final class CraftCompat {
                 if (!(baubleStack.getItem() instanceof studio.fantasyit.maid_storage_manager.items.LogisticsGuide)) continue;
 
                 var craftData = studio.fantasyit.maid_storage_manager.items.LogisticsGuide
-                        .getCraftGuideData(baubleStack, level.registryAccess());
+                        .getCraftGuideData(baubleStack);
                 if (craftData == null) {
                     TlmSmartCombat.LOGGER.info("[SmartCombat] {} 物流清单槽 {} 不含合成指南，跳过",
                             maid.getName().getString(), i);
@@ -237,7 +236,7 @@ public final class CraftCompat {
 
                     // 按盔甲评分：仅评估该物品实际可穿戴的部位
                     EquipmentSlot fitted = maid.getEquipmentSlotForItem(output);
-                    if (fitted.getType() == EquipmentSlot.Type.HUMANOID_ARMOR) {
+                    if (fitted.getType() == EquipmentSlot.Type.ARMOR) {
                         for (int a = 0; a < 4; a++) {
                             if (armorSlots[a] != fitted) continue;
                             double score = EquipOptimizer.armorScore(maid, output, fitted);
@@ -415,7 +414,7 @@ public final class CraftCompat {
                 if (stack.isEmpty()) continue;
                 if (!(stack.getItem() instanceof studio.fantasyit.maid_storage_manager.items.LogisticsGuide)) continue;
                 var guideData = studio.fantasyit.maid_storage_manager.items.LogisticsGuide
-                        .getCraftGuideData(stack, maid.level().registryAccess());
+                        .getCraftGuideData(stack);
                 if (guideData == null) continue;
                 if (!existing.contains(guideData)) {
                     crafting.addCraftGuide(guideData);
@@ -517,7 +516,7 @@ public final class CraftCompat {
 
             int remaining = count;
             for (BlockPos pos : positions) {
-                IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
+                IItemHandler container = StorageCompat.getItemHandler(level, pos);
                 if (container == null) continue;
                 // 尊重 maid_storage_manager 的访问权标记
                 if (!StorageCompat.isAccessibleStorage(level, maid, pos)) continue;

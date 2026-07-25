@@ -26,10 +26,6 @@ import io.github.tlmsmartcombat.ai.SmartShieldTask;
 import io.github.tlmsmartcombat.compat.SlashBladeCompat;
 import io.github.tlmsmartcombat.compat.TruePowerCompat;
 import io.github.tlmsmartcombat.strategy.EquipOptimizer;
-import net.minecraft.core.Holder;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -57,8 +53,8 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.common.ModConfigSpec;
-import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.items.wrapper.CombinedInvWrapper;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -87,7 +83,7 @@ import java.util.function.Predicate;
  * </ol>
  */
 public class TaskSmartCombat implements IRangedAttackTask {
-    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath(TlmSmartCombat.MOD_ID, "smart_combat");
+    public static final ResourceLocation UID = new ResourceLocation(TlmSmartCombat.MOD_ID, "smart_combat");
 
     @Override
     public ResourceLocation getUid() {
@@ -356,7 +352,7 @@ public class TaskSmartCombat implements IRangedAttackTask {
         return IRangedAttackTask.super.searchRadius(maid);
     }
 
-    private static ModConfigSpec.IntValue rangeConfig(EntityMaid maid) {
+    private static ForgeConfigSpec.IntValue rangeConfig(EntityMaid maid) {
         ItemStack mainHand = maid.getMainHandItem();
         if (mainHand.getItem() instanceof CrossbowItem) {
             return MaidConfig.CROSS_BOW_RANGE;
@@ -406,7 +402,7 @@ public class TaskSmartCombat implements IRangedAttackTask {
             float inaccuracy = 1 - Mth.clamp(distance / 100f, 0, 0.9f);
             arrow.setNoGravity(true);
             arrow.shoot(x, y, z, velocity, inaccuracy);
-            mainHandItem.hurtAndBreak(1, shooter, EquipmentSlot.MAINHAND);
+            mainHandItem.hurtAndBreak(1, shooter, entity -> entity.broadcastBreakEvent(EquipmentSlot.MAINHAND));
             shooter.playSound(SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (shooter.getRandom().nextFloat() * 0.4F + 0.8F));
             shooter.level().addFreshEntity(arrow);
         }
@@ -425,10 +421,10 @@ public class TaskSmartCombat implements IRangedAttackTask {
         }
         ItemStack arrowStack = handler.getStackInSlot(slot);
         // getMobArrow 内部已处理 customArrow 等钩子
-        AbstractArrow arrow = ProjectileUtil.getMobArrow(maid, arrowStack, chargeTime, mainHandItem);
+        AbstractArrow arrow = ProjectileUtil.getMobArrow(maid, arrowStack, chargeTime);
 
         // 无无限附魔时消耗一支箭，并允许回收
-        if (enchantLevel(maid.level().registryAccess(), Enchantments.INFINITY, mainHandItem) <= 0) {
+        if (mainHandItem.getEnchantmentLevel(Enchantments.INFINITY_ARROWS) <= 0) {
             arrowStack.shrink(1);
             handler.setStackInSlot(slot, arrowStack);
             arrow.pickup = AbstractArrow.Pickup.ALLOWED;
@@ -452,9 +448,11 @@ public class TaskSmartCombat implements IRangedAttackTask {
     private void throwTrident(EntityMaid shooter, LivingEntity target) {
         ItemStack tridentItem = shooter.getMainHandItem().copy();
 
-        Holder<Enchantment> loyalty = enchantHolder(shooter.level().registryAccess(), Enchantments.LOYALTY);
-        if (loyalty != null && tridentItem.getEnchantments().getLevel(loyalty) > 0) {
-            EnchantmentHelper.updateEnchantments(tridentItem, mutable -> mutable.set(loyalty, 0));
+        // 掷出不含忠诚附魔的复制品，防止三叉戟返回后无法拾取
+        Map<Enchantment, Integer> enchantments = EnchantmentHelper.getEnchantments(tridentItem);
+        if (enchantments.getOrDefault(Enchantments.LOYALTY, 0) > 0) {
+            enchantments.put(Enchantments.LOYALTY, 0);
+            EnchantmentHelper.setEnchantments(enchantments, tridentItem);
         }
 
         ThrownTrident thrownTrident = new ThrownTrident(shooter.level(), shooter, tridentItem);
@@ -469,9 +467,9 @@ public class TaskSmartCombat implements IRangedAttackTask {
         thrownTrident.shoot(x, y, z, velocity, inaccuracy);
         thrownTrident.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
 
-        shooter.getMainHandItem().hurtAndBreak(1, shooter, EquipmentSlot.MAINHAND);
+        shooter.getMainHandItem().hurtAndBreak(1, shooter, entity -> entity.broadcastBreakEvent(EquipmentSlot.MAINHAND));
         shooter.level().addFreshEntity(thrownTrident);
-        shooter.playSound(SoundEvents.TRIDENT_THROW.value(), 1.0F, 1.0F);
+        shooter.playSound(SoundEvents.TRIDENT_THROW, 1.0F, 1.0F);
     }
 
     // ------------------------------------------------------------------
@@ -514,19 +512,5 @@ public class TaskSmartCombat implements IRangedAttackTask {
         return "Smart combat: focus the hostile mob with the highest health, " +
                "and automatically swap the main hand / off hand / armor to the best " +
                "equipment in the backpack for max DPS against the current target.";
-    }
-
-    // ------------------------------------------------------------------
-    // 工具
-    // ------------------------------------------------------------------
-
-    @Nullable
-    private static Holder<Enchantment> enchantHolder(RegistryAccess access, ResourceKey<Enchantment> key) {
-        return access.registryOrThrow(Registries.ENCHANTMENT).getHolder(key).orElse(null);
-    }
-
-    private static int enchantLevel(RegistryAccess access, ResourceKey<Enchantment> key, ItemStack stack) {
-        Holder<Enchantment> holder = enchantHolder(access, key);
-        return holder == null ? 0 : stack.getEnchantments().getLevel(holder);
     }
 }

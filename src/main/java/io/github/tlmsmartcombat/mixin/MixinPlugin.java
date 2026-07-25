@@ -27,7 +27,7 @@ public class MixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         try {
-            return net.neoforged.fml.loading.LoadingModList.get()
+            return net.minecraftforge.fml.loading.LoadingModList.get()
                     .getModFileById("maid_storage_manager") != null;
         } catch (Throwable t) {
             return false;

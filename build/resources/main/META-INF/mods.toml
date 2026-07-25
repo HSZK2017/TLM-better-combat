@@ -1,0 +1,52 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "tlm_smart_combat"
+version = "1.1.2"
+displayName = "Touhou Little Maid Smart Combat"
+authors = "TLM Smart Combat Authors"
+description = '''Smart combat addon for Touhou Little Maid: focus-fire the highest-HP hostile and auto-optimize equipment for max DPS.'''
+
+[[dependencies.tlm_smart_combat]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "touhou_little_maid"
+mandatory = true
+versionRange = "[1.5.3,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "slashblade"
+mandatory = false
+versionRange = "[1.9.65,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "true_power_of_maid"
+mandatory = false
+versionRange = "[1.2.3,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tlm_smart_combat]]
+modId = "maid_storage_manager"
+mandatory = false
+versionRange = "[1.15.6,)"
+ordering = "AFTER"
+side = "BOTH"
