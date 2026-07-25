@@ -17,24 +17,28 @@ import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.wrapper.CombinedInvWrapper;
 
+import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * 容器物资交换工具，复用 maid_storage_manager 的 {@code InvUtil} 设计模式。
  * <p>
- * 不依赖任何外部 mod，直接通过 NeoForge 的 {@link IItemHandler} capability
+ * 不依赖任何外部 mod，直接通过 Forge 的 {@link IItemHandler} capability
  * 访问容器，并借用女仆的 TLM 背包接口完成物资搬运。
  * 若安装了 maid_storage_manager，则尊重其 NoAccess 标记（禁止访问的容器会被跳过）。
  */
 public final class StorageCompat {
     private static final ResourceLocation ITEM_HANDLER_TYPE =
-            ResourceLocation.fromNamespaceAndPath("maid_storage_manager", "item_handler");
+            new ResourceLocation("maid_storage_manager", "item_handler");
 
     private StorageCompat() {
     }
@@ -78,11 +82,19 @@ public final class StorageCompat {
     }
 
     private static boolean isValidStorage(Level level, BlockPos pos) {
+        return getItemHandler(level, pos) != null;
+    }
+
+    /**
+     * 获取指定坐标方块的物品处理器（Forge capability），无方块实体或无该能力时返回 null。
+     */
+    @Nullable
+    public static IItemHandler getItemHandler(Level level, BlockPos pos) {
         BlockEntity be = level.getBlockEntity(pos);
         if (be == null) {
-            return false;
+            return null;
         }
-        return level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null) != null;
+        return be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).resolve().orElse(null);
     }
 
     /**
@@ -144,7 +156,7 @@ public final class StorageCompat {
      */
     public static int pullCombatGear(EntityMaid maid, BlockPos containerPos) {
         Level level = maid.level();
-        IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, containerPos, null);
+        IItemHandler container = getItemHandler(level, containerPos);
         if (container == null) {
             return 0;
         }
@@ -198,13 +210,12 @@ public final class StorageCompat {
     }
 
     private static boolean hasModifierForSlot(ItemStack stack, EquipmentSlot slot) {
-        boolean[] found = {false};
-        stack.forEachModifier(slot, (attr, mod) -> {
-            if (mod.amount() > 0) {
-                found[0] = true;
+        for (Map.Entry<Attribute, AttributeModifier> entry : stack.getAttributeModifiers(slot).entries()) {
+            if (entry.getValue().getAmount() > 0) {
+                return true;
             }
-        });
-        return found[0];
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -218,7 +229,7 @@ public final class StorageCompat {
      */
     public static int pushNonCombatItems(EntityMaid maid, BlockPos containerPos) {
         Level level = maid.level();
-        IItemHandler container = level.getCapability(Capabilities.ItemHandler.BLOCK, containerPos, null);
+        IItemHandler container = getItemHandler(level, containerPos);
         if (container == null) {
             return 0;
         }
@@ -306,7 +317,7 @@ public final class StorageCompat {
         ItemStack rest = stack.copy();
         for (int i = 0; i < inv.getSlots(); i++) {
             ItemStack inSlot = inv.getStackInSlot(i);
-            if (ItemStack.isSameItemSameComponents(inSlot, rest)) {
+            if (ItemStack.isSameItemSameTags(inSlot, rest)) {
                 rest = inv.insertItem(i, rest, false);
                 if (rest.isEmpty()) {
                     return ItemStack.EMPTY;

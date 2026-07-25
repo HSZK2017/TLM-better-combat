@@ -1,6 +1,6 @@
 # Touhou Little Maid Smart Combat（女仆智能战斗附属模组）
 
-适用于 **Minecraft 1.21.1 + NeoForge** 的 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid/tree/1.21)（1.5.3+）附属模组。
+适用于 **Minecraft 1.20.1 + Forge** 的 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid/tree/1.20)（1.5.3+）附属模组。
 
 为女仆新增工作模式 **「智能战斗」（Smart Combat）**：以"护卫主人"为核心的智能索敌、按当前目标实时
 估算 DPS 的动态换装、按武器形态自适应走位，并可在空闲时借助
@@ -83,7 +83,7 @@ maid storage manager 时，周期性（3 秒）评估女仆饰品栏**物流清�
 
 ## 构建
 
-需要 JDK 21 与约 8GB 可用内存（NeoForge 开发环境需要对 Minecraft 反编译/重编译）：
+需要 JDK 17 与约 8GB 可用内存（ForgeGradle 开发环境需要对 Minecraft 反编译/重编译）：
 
 ```bash
 ./gradlew build
@@ -93,8 +93,8 @@ maid storage manager 时，周期性（3 秒）评估女仆饰品栏**物流清�
 
 ## 安装
 
-1. 安装 Minecraft 1.21.1 + NeoForge 21.1.x；
-2. 安装 Touhou Little Maid 1.5.3+（NeoForge 版）；
+1. 安装 Minecraft 1.20.1 + Forge 47.x；
+2. 安装 Touhou Little Maid 1.5.3+（Forge 版）；
 3. 将本模组 jar 放入 `mods` 文件夹；
 4. 进入游戏后，在女仆的任务列表中选择 **「智能战斗」** 即可。
 

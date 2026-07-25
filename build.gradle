@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.95'
+    id 'net.minecraftforge.gradle' version '6.0.29'
 }
 
 version = mod_version
@@ -12,36 +12,66 @@ base {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    copyIdeResources = true
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                tlm_smart_combat {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                tlm_smart_combat {
+                    source sourceSets.main
+                }
+            }
+        }
     }
 }
 
 repositories {
     mavenCentral()
-    maven {
-        name = 'Modrinth'
-        url = 'https://api.modrinth.com/maven'
-        content {
-            includeGroup 'maven.modrinth'
-        }
+    // 本地依赖（fg.deobf 需要通过 flatDir 仓库解析才能反混淆）
+    flatDir {
+        dirs 'libs'
     }
 }
 
-neoForge {
-    // NeoForge 版本，与 Touhou Little Maid 1.21.1 分支保持一致
-    version = project.neo_version
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Touhou Little Maid 本体（编译期依赖，运行时由玩家安装）
+    compileOnly fg.deobf("deps:touhou_little_maid:1.5.3")
+    // 拔刀剑与 True POWER of Maid（可选联动，编译期依赖）
+    compileOnly fg.deobf("deps:slashblade:1.9.65")
+    compileOnly fg.deobf("deps:true_power_of_maid:1.2.3")
+    // 容器管理（可选联动，编译期依赖，用于访问权检测）
+    compileOnly fg.deobf("deps:maid_storage_manager:1.15.6")
 }
 
-dependencies {
-    // Touhou Little Maid 本体（编译期依赖，运行时由玩家安装）
-    compileOnly "maven.modrinth:touhou-little-maid:1.5.3-neoforge+mc1.21.1"
-    // 拔刀剑与 True POWER of Maid（可选联动，编译期依赖）
-    compileOnly "maven.modrinth:slashblade-resharped:2.0.3-1.21.1"
-    compileOnly "maven.modrinth:true-power-of-maid:1.2.3-hotfix3"
-    // 容器管理（可选联动，编译期依赖，用于访问权检测）
-    // 注意：Modrinth 上 1.21.1 NeoForge 版的 1.15.6 与 Forge 版同号，需用版本 ID 区分。
-    // NeoForge 1.21.1 构建的 LogisticsGuide.getCraftGuideData 需要 HolderLookup.Provider 参数。
-    compileOnly "maven.modrinth:maid-storage-manager:RgLYYPvs"
+jar {
+    // Forge 1.20.1 通过 jar 清单中的 MixinConfigs 属性注册 mixin 配置
+    manifest {
+        attributes([
+                'MixinConfigs': 'tlm_smart_combat.mixins.json'
+        ])
+    }
+    finalizedBy 'reobfJar'
 }
 
 // 资源文件中替换版本号
@@ -55,7 +85,7 @@ processResources {
             "mod_description": mod_description
     ]
     inputs.properties replaceProps
-    filesMatching('META-INF/neoforge.mods.toml') {
+    filesMatching('META-INF/mods.toml') {
         expand replaceProps
     }
 }
